@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "directory": "^0.1.0",
+    "file": "^0.2.2",
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7",
+    "readdir": "^1.0.2",
+    "require": "^0.4.4"
+  },
+  "devDependencies": {
+    "@atao60/fse-cli": "^0.1.9"
+  }
+}
