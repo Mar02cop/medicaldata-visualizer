@@ -28,6 +28,7 @@
 	import { VolumeRenderShader1 } from 'three/addons/shaders/VolumeShader.js';
 
 	const volumes =  [];
+	const directories =[];
 
 	let renderer,
 		scene,
@@ -37,31 +38,28 @@
 		volconfig,
 		data,
 		cmtextures;
-
+	
+	const directoryLabels={};
 	const dataLabels={};
+	const dentition=[];
+	const mandible=[];
+	const maxillaryComplex=[];
+	const maxillarySinus=[];
+	const nerve=[];
+	const pharynx=[];
+	const skull=[];
+	var index = 1;
+
 	init();
 
-	
+		//TODO: ESTRAI IL METODO PER FARE LE RICHIESTE E DIVIDI I DUE CASI IN CUI CERCHI DELLE DIRECTORY O DEI FILE
+		//USA QUESTE FUNZIONI PER INIZIALIZZARE LE STRUTTURE DATI
 	  function setup() {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', '/volumi', false);
-            xhr.send(null);
-
-            if (xhr.status === 200) {
-                const parser = new DOMParser();
-                const htmlDoc = parser.parseFromString(xhr.responseText, 'text/html');
-                const fileList = Array.from(htmlDoc.querySelectorAll('a')).map(a => a.getAttribute('href'));
-				var index= 1;
-                for (const file of fileList) {
-                    if (file.endsWith('.nrrd')) {
-                        volumes.push(`${file}`);
-                        dataLabels[`P${index}`] = `${file}`;
-						index++;
-					}
-                }
-            } else {
-                console.error(`Failed to fetch volumes: ${xhr.status}`);
-            }
+            doRequestFile("/volumi", false);
+			for(var dir of directories){
+				//console.log(dir);
+				doRequestFile(dir, true);
+			}
         }
 
         function init() {
@@ -209,6 +207,68 @@
 
 	}
 
+	function doRequestFile(path, value){
+		const xhr = new XMLHttpRequest();
+		xhr.open('GET', path, false);
+        xhr.send(null);
+
+        if (xhr.status === 200) {
+        	const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(xhr.responseText, 'text/html');
+            const fileList = Array.from(htmlDoc.querySelectorAll('a')).map(a => a.getAttribute('href'));
+			
+			if(value==true){
+				volumes.length = 0;
+				for (const file of fileList) {
+					
+					if (file.endsWith('.nrrd')) {
+						var x = file.split('_');
+						switch(x[1]){
+							case 'Dentition.nrrd':
+								dentition.push(`${file}`);
+								break;
+							case 'Mandible.nrrd':
+								mandible.push(`${file}`);
+								break;
+							case 'MaxillaryComplex.nrrd':
+								maxillaryComplex.push(`${file}`);
+								break;
+							case 'MaxillarySinus.nrrd':
+								maxillarySinus.push(`${file}`);
+								break;
+							case 'Nerve.nrrd':
+								nerve.push(`${file}`);
+								break;
+							case 'Pharynx.nrrd':
+								pharynx.push(`${file}`);
+								break;
+							case 'Skull.nrrd':
+								skull.push(`${file}`);
+								break;
+							case 'Input.nrrd':
+								volumes.push(`${file}`);
+								dataLabels[`P${index}`] = `${file}`;
+								index++;
+								break;
+							default:
+								console.log('Unknown case:', x);
+								// Add your logic for unknown case here
+						}
+						
+					}
+				}
+			}
+			else{
+				for (const file of fileList) {
+					if (file.endsWith('/') && file.startsWith('\\')) {
+						directories.push(`${file}`);
+					}
+				}
+			}
+        } else {
+            console.error(`Failed to fetch volumes: ${xhr.status}`);
+        }
+	}
 
 	</script>
 
