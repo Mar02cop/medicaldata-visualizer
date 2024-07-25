@@ -2,7 +2,8 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
-		<title>My first three.js app</title>
+		<title>Medical Data Visualizer</title>
+		<link rel="icon" type="image/x-icon" href="others/favicon.ico">
 		<style>
 			body { margin: 0; }
 		</style>
@@ -13,15 +14,13 @@
 		{
 			"imports": {
 				"three": "https://cdn.jsdelivr.net/npm/three@v0.149.0/build/three.module.js",
-				"three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.149.0/examples/jsm/",
-				"fs": "https://www.npmjs.com/package/fs-extra?activeTab=code"
+				"three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.149.0/examples/jsm/"
 			  }
 		}
 	</script>
 
 	<script type="module">
 
-	import * as FS from 'fs';
 	import * as THREE from 'three';
 	import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -40,35 +39,34 @@
 		cmtextures;
 
 	const dataLabels={};
-
-	setup();
 	init();
 
-	function setup(){
-		
-		var fs = new FS;
-
-		i = 1;
-		while(true){
-			path = '/volumi' + i;
-			if(fs.pathExists()){
-				volumes[i-1] = path;
-			}
-			else{
-				break;
-			}
-			i+=1;
-		}
-
-		volumes.forEach((volume, index) => {
-    		dataLabels[`P${index + 1}`] = volume;
-		});
 	
-	}
+	  function setup() {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', '/volumi', false);
+            xhr.send(null);
 
+            if (xhr.status === 200) {
+                const parser = new DOMParser();
+                const htmlDoc = parser.parseFromString(xhr.responseText, 'text/html');
+                const fileList = Array.from(htmlDoc.querySelectorAll('a')).map(a => a.getAttribute('href'));
+				var index= 1;
+                for (const file of fileList) {
+                    if (file.endsWith('.nrrd')) {
+                        volumes.push(`${file}`);
+                        dataLabels[`P${index}`] = `${file}`;
+						index++;
+					}
+                }
+            } else {
+                console.error(`Failed to fetch volumes: ${xhr.status}`);
+            }
+        }
 
+        function init() {
+            setup();
 
-	function init() {
 
 		scene = new THREE.Scene();
 
