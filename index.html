@@ -103,13 +103,22 @@
         material.uniforms['u_renderstyle'].value = volconfig.renderstyle == 'mip' ? 0 : 1; // 0: MIP, 1: ISO
         material.uniforms['u_renderthreshold'].value = volconfig.isothreshold; // For ISO renderstyle
         material.uniforms['u_cmdata'].value = cmtextures[volconfig.colormap];
-
+		if (additionalVolumeMesh) {
+            additionalVolumeMesh.material.uniforms['u_clim'].value.set(volconfig.clim1, volconfig.clim2);
+            additionalVolumeMesh.material.uniforms['u_renderstyle'].value = volconfig.renderstyle == 'mip' ? 0 : 1; // 0: MIP, 1: ISO
+            additionalVolumeMesh.material.uniforms['u_renderthreshold'].value = volconfig.isothreshold; // For ISO renderstyle
+            additionalVolumeMesh.material.uniforms['u_cmdata'].value = cmtextures[volconfig.colormap];
+        }
         render();
     }
 
     function updateVolume() {
         scene.clear();
-        loadVolume(volconfig.data);
+		if(volconfig.showDetails){
+			toggleAdditionalVolume();
+		}else{
+			loadVolume(volconfig.data);
+		}
     }
 
     function loadVolume(data) {
@@ -157,6 +166,7 @@
         if (additionalVolumeMesh) {
             scene.remove(additionalVolumeMesh);
             additionalVolumeMesh = null;
+			updateVolume();
         }
 
         if (volconfig.showDetails) {
