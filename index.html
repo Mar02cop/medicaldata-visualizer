@@ -1,31 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<title>Medical Data Visualizer</title>
-		<link rel="icon" type="image/x-icon" href="others/favicon.ico">
-		<style>
-			body { margin: 0; }
-		</style>
-	</head>
-
+<head>
+    <meta charset="utf-8">
+    <title>Medical Data Visualizer</title>
+    <link rel="icon" type="image/x-icon" href="others/favicon.ico">
+    <style>
+        body { margin: 0; }
+    </style>
+</head>
 <body>
-	<script type="importmap">
-		{
-			"imports": {
-				"three": "https://cdn.jsdelivr.net/npm/three@v0.149.0/build/three.module.js",
-				"three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.149.0/examples/jsm/"
-			  }
-		}
-	</script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@v0.149.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.149.0/examples/jsm/"
+              }
+        }
+    </script>
 
-	<script type="module">
+    <script type="module">
 
-	import * as THREE from 'three';
-	import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
-	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-	import { NRRDLoader } from 'three/addons/loaders/NRRDLoader.js';
-	import { VolumeRenderShader1 } from 'three/addons/shaders/VolumeShader.js';
+    import * as THREE from 'three';
+    import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { NRRDLoader } from 'three/addons/loaders/NRRDLoader.js';
+    import { VolumeRenderShader1 } from 'three/addons/shaders/VolumeShader.js';
 
 	const volumes = [];
     const directories = [];
@@ -43,6 +42,12 @@
     const skull = [];
     let index = 1;
     let volumeDentitionMesh = null;
+    let volumeMandibleMesh = null;
+    let volumeMaxillaryComplexMesh = null;
+    let volumeMaxillarySinusMesh = null;
+    let volumeNerveMesh = null;
+    let volumePharynxMesh = null;
+    let volumeSkullMesh = null;
 
     init();
 
@@ -83,8 +88,10 @@
         // The GUI for interaction
         volconfig = {
             clim1: 0, clim2: 1, renderstyle: 'iso', isothreshold: 0.85, colormap: 'viridis',
-            data: volumes[0], showDentition: false
+            data: volumes[0], showDentition: false, showMandible: false, showNerve: false, 
+            showSkull: false, showMaxillaryComplex: false, showMaxillarySinus: false, showPharynx: false
         };
+
         const gui = new GUI();
         gui.add(volconfig, 'clim1', 0, 1, 0.01).onChange(updateUniforms);
         gui.add(volconfig, 'clim2', 0, 1, 0.01).onChange(updateUniforms);
@@ -92,10 +99,21 @@
         gui.add(volconfig, 'renderstyle', { mip: 'mip', iso: 'iso' }).onChange(updateUniforms);
         gui.add(volconfig, 'isothreshold', 0, 1, 0.01).onChange(updateUniforms);
         gui.add(volconfig, 'data', dataLabels).onChange(updateVolume);
-        gui.add(volconfig, 'showDentition').onChange(toggleAdditionalVolume);
-		loadVolume(volconfig.data);
+
+        // Add checkboxes for additional volumes
+        gui.add(volconfig, 'showDentition').onChange(toggleDentitionVolume);
+        gui.add(volconfig, 'showMandible').onChange(toggleMandibleVolume);
+        gui.add(volconfig, 'showNerve').onChange(toggleNerveVolume);
+        gui.add(volconfig, 'showSkull').onChange(toggleSkullVolume);
+        gui.add(volconfig, 'showMaxillaryComplex').onChange(toggleMaxillaryComplexVolume);
+        gui.add(volconfig, 'showMaxillarySinus').onChange(toggleMaxillarySinusVolume);
+        gui.add(volconfig, 'showPharynx').onChange(togglePharynxVolume);
+
+        loadVolume(volconfig.data);
 
         window.addEventListener('resize', onWindowResize);
+        const renderInterval = 100; // Render every 100 milliseconds
+            setInterval(() => renderer.render(scene, camera), renderInterval);
     }
 
     function updateUniforms() {
@@ -103,87 +121,95 @@
         material.uniforms['u_renderstyle'].value = volconfig.renderstyle == 'mip' ? 0 : 1; // 0: MIP, 1: ISO
         material.uniforms['u_renderthreshold'].value = volconfig.isothreshold; // For ISO renderstyle
         material.uniforms['u_cmdata'].value = cmtextures[volconfig.colormap];
-		if (volumeDentitionMesh) {
-			//POSSIBILE CONFIGURAZIONE CORRETTA: CLIM1:0, CLIM2:0.02/0.01
-            //volumeDentitionMesh.material.uniforms['u_clim'].value.set(0, 0.02);
-            volumeDentitionMesh.material.uniforms['u_renderstyle'].value = volconfig.renderstyle == 'mip' ? 0 : 1; // 0: MIP, 1: ISO
-            //volumeDentitionMesh.material.uniforms['u_renderthreshold'].value = 0; // For ISO renderstyle
-            volumeDentitionMesh.material.uniforms['u_cmdata'].value = cmtextures[volconfig.colormap];
-        }
-        render();
+       // render();
     }
 
     function updateVolume() {
-    
-    scene.clear();
-
-    
-    loadVolume(volconfig.data, function() {
-        
-        if (volconfig.showDentition) {
-            loadAdditionalVolume(dentition[volumes.indexOf(volconfig.data)]);
-        }
-    });
-}
-
-function loadVolume(data, onLoadCallback) {
-    new NRRDLoader().load(data, function (volume) {
-        // Setup texture and material for the main volume
-        const texture = new THREE.Data3DTexture(volume.data, volume.xLength, volume.yLength, volume.zLength);
-        texture.format = THREE.RedFormat;
-        texture.type = THREE.UnsignedByteType;
-        texture.minFilter = texture.magFilter = THREE.LinearFilter;
-        texture.needsUpdate = true;
-
-        cmtextures = {
-            viridis: new THREE.TextureLoader().load('/others/cm_viridis.png', render),
-            gray: new THREE.TextureLoader().load('/others/cm_gray.png', render)
-        };
-
-        const shader = VolumeRenderShader1;
-        const uniforms = THREE.UniformsUtils.clone(shader.uniforms);
-
-        uniforms['u_data'].value = texture;
-        uniforms['u_size'].value.set(volume.xLength, volume.yLength, volume.zLength);
-        uniforms['u_clim'].value.set(volconfig.clim1, volconfig.clim2);
-        uniforms['u_renderstyle'].value = volconfig.renderstyle == 'mip' ? 0 : 1;
-        uniforms['u_renderthreshold'].value = volconfig.isothreshold;
-        uniforms['u_cmdata'].value = cmtextures[volconfig.colormap];
-
-        material = new THREE.ShaderMaterial({
-            uniforms: uniforms,
-            vertexShader: shader.vertexShader,
-            fragmentShader: shader.fragmentShader,
-            side: THREE.BackSide
+        scene.clear(); 
+        loadVolume(volconfig.data, function() {
+            if (volconfig.showDentition) loadAdditionalVolume(dentition[volumes.indexOf(volconfig.data)], setVolumeDentitionMesh);
+            if (volconfig.showMandible) loadAdditionalVolume(mandible[volumes.indexOf(volconfig.data)], setVolumeMandibleMesh);
+            if (volconfig.showNerve) loadAdditionalVolume(nerve[volumes.indexOf(volconfig.data)], setVolumeNerveMesh);
+            if (volconfig.showSkull) loadAdditionalVolume(skull[volumes.indexOf(volconfig.data)], setVolumeSkullMesh);
+            if (volconfig.showMaxillaryComplex) loadAdditionalVolume(maxillaryComplex[volumes.indexOf(volconfig.data)], setVolumeMaxillaryComplexMesh);
+            if (volconfig.showMaxillarySinus) loadAdditionalVolume(maxillarySinus[volumes.indexOf(volconfig.data)], setVolumeMaxillarySinusMesh);
+            if (volconfig.showPharynx) loadAdditionalVolume(pharynx[volumes.indexOf(volconfig.data)], setVolumePharynxMesh);
         });
-
-        const geometry = new THREE.BoxGeometry(volume.xLength, volume.yLength, volume.zLength);
-        geometry.translate(volume.xLength / 2 - 0.5, volume.yLength / 2 - 0.5, volume.zLength / 2 - 0.5);
-
-        const mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
-
-        render();
-
-        if (onLoadCallback) {
-            onLoadCallback();
-        }
-    });
-}
-
-    function toggleAdditionalVolume() {
-        if (volumeDentitionMesh) {
-            scene.remove(volumeDentitionMesh);
-            volumeDentitionMesh = null;
-			//updateVolume();
-        }
-		if (volconfig.showDentition) {
-            loadAdditionalVolume(dentition[volumes.indexOf(volconfig.data)]);
-        }
-
     }
 
-    function loadAdditionalVolume(data) {
+    function setVolumeDentitionMesh(mesh) {
+        volumeDentitionMesh = mesh;
+    }
+
+    function setVolumeMandibleMesh(mesh) {
+        volumeMandibleMesh = mesh;
+    }
+
+    function setVolumeNerveMesh(mesh) {
+        volumeNerveMesh = mesh;
+    }
+
+    function setVolumeSkullMesh(mesh) {
+        volumeSkullMesh = mesh;
+    }
+
+    function setVolumeMaxillaryComplexMesh(mesh) {
+        volumeMaxillaryComplexMesh = mesh;
+    }
+
+    function setVolumeMaxillarySinusMesh(mesh) {
+        volumeMaxillarySinusMesh = mesh;
+    }
+
+    function setVolumePharynxMesh(mesh) {
+        volumePharynxMesh = mesh;
+    }
+
+    function loadVolume(data, onLoadCallback) {
+        new NRRDLoader().load(data, function (volume) {
+            const texture = new THREE.Data3DTexture(volume.data, volume.xLength, volume.yLength, volume.zLength);
+            texture.format = THREE.RedFormat;
+            texture.type = THREE.UnsignedByteType;
+            texture.minFilter = texture.magFilter = THREE.LinearFilter;
+            texture.needsUpdate = true;
+
+            cmtextures = {
+                viridis: new THREE.TextureLoader().load('/others/cm_viridis.png', render),
+                gray: new THREE.TextureLoader().load('/others/cm_gray.png', render),
+            };
+
+            const shader = VolumeRenderShader1;
+            const uniforms = THREE.UniformsUtils.clone(shader.uniforms);
+
+            uniforms['u_data'].value = texture;
+            uniforms['u_size'].value.set(volume.xLength, volume.yLength, volume.zLength);
+            uniforms['u_clim'].value.set(volconfig.clim1, volconfig.clim2);
+            uniforms['u_renderstyle'].value = volconfig.renderstyle == 'mip' ? 0 : 1;
+            uniforms['u_renderthreshold'].value = volconfig.isothreshold;
+            uniforms['u_cmdata'].value = cmtextures[volconfig.colormap];
+
+            material = new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: shader.vertexShader,
+                fragmentShader: shader.fragmentShader,
+                side: THREE.BackSide
+            });
+
+            const geometry = new THREE.BoxGeometry(volume.xLength, volume.yLength, volume.zLength);
+            geometry.translate(volume.xLength / 2 - 0.5, volume.yLength / 2 - 0.5, volume.zLength / 2 - 0.5);
+
+            const mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+           // render();
+
+            if (onLoadCallback) {
+                onLoadCallback();
+            }
+        });
+    }
+
+    function loadAdditionalVolume(data, setVolumeMeshCallback) {
         new NRRDLoader().load(data, function (volume) {
             const texture = new THREE.Data3DTexture(volume.data, volume.xLength, volume.yLength, volume.zLength);
             texture.format = THREE.RedFormat;
@@ -196,10 +222,10 @@ function loadVolume(data, onLoadCallback) {
 
             uniforms['u_data'].value = texture;
             uniforms['u_size'].value.set(volume.xLength, volume.yLength, volume.zLength);
-            uniforms['u_clim'].value.set(0.0, 0.02);
-            uniforms['u_renderstyle'].value = volconfig.renderstyle == 'mip' ? 0 : 1; // 0: MIP, 1: ISO
+            uniforms['u_clim'].value.set(0.0, 1);
+            uniforms['u_renderstyle'].value = 1; // 0: MIP, 1: ISO
             uniforms['u_renderthreshold'].value = 0.0; // For ISO renderstyle
-            uniforms['u_cmdata'].value = cmtextures[volconfig.colormap];
+            uniforms['u_cmdata'].value = new THREE.TextureLoader().load('/others/colormap.png');
 
             const material = new THREE.ShaderMaterial({
                 uniforms: uniforms,
@@ -211,39 +237,76 @@ function loadVolume(data, onLoadCallback) {
             const geometry = new THREE.BoxGeometry(volume.xLength, volume.yLength, volume.zLength);
             geometry.translate(volume.xLength / 2 - 0.5, volume.yLength / 2 - 0.5, volume.zLength / 2 - 0.5);
 
-            volumeDentitionMesh = new THREE.Mesh(geometry, material);
-            scene.add(volumeDentitionMesh);
+            const mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
 
-            render();
+            setVolumeMeshCallback(mesh);
+
+            /*requestAnimationFrame(render);
+            render(); */  
         });
     }
 
-	
+    function toggleDentitionVolume() {
+        toggleAdditionalVolume(volumeDentitionMesh, volconfig.showDentition, dentition, setVolumeDentitionMesh);
+    }
+
+    function toggleMandibleVolume() {
+        toggleAdditionalVolume(volumeMandibleMesh, volconfig.showMandible, mandible, setVolumeMandibleMesh);
+    }
+
+    function toggleNerveVolume() {
+        toggleAdditionalVolume(volumeNerveMesh, volconfig.showNerve, nerve, setVolumeNerveMesh);
+    }
+
+    function toggleSkullVolume() {
+        toggleAdditionalVolume(volumeSkullMesh, volconfig.showSkull, skull, setVolumeSkullMesh);
+    }
+
+    function toggleMaxillaryComplexVolume() {
+        toggleAdditionalVolume(volumeMaxillaryComplexMesh, volconfig.showMaxillaryComplex, maxillaryComplex, setVolumeMaxillaryComplexMesh);
+    }
+
+    function toggleMaxillarySinusVolume() {
+        toggleAdditionalVolume(volumeMaxillarySinusMesh, volconfig.showMaxillarySinus, maxillarySinus, setVolumeMaxillarySinusMesh);
+    }
+
+    function togglePharynxVolume() {
+        toggleAdditionalVolume(volumePharynxMesh, volconfig.showPharynx, pharynx, setVolumePharynxMesh);
+    }
+
+    function toggleAdditionalVolume(mesh, isVisible, volumeArray, setMeshCallback) {
+        if (mesh) {
+            scene.remove(mesh);
+            mesh = null;
+        }
+
+        if (isVisible) {
+            loadAdditionalVolume(volumeArray[volumes.indexOf(volconfig.data)], setMeshCallback);
+        } /*else {
+            requestAnimationFrame(render);
+        }
+        render();*/
+    }
 
 	function onWindowResize() {
-
-		renderer.setSize( window.innerWidth, window.innerHeight );
+		renderer.setSize(window.innerWidth, window.innerHeight);
 
 		const aspect = window.innerWidth / window.innerHeight;
-
 		const frustumHeight = camera.top - camera.bottom;
 
 		camera.left = - frustumHeight * aspect / 2;
 		camera.right = frustumHeight * aspect / 2;
 
 		camera.updateProjectionMatrix();
-
-		render();
-
+		//render();
 	}
 
 	function render() {
-
-		renderer.render( scene, camera );
-
+		renderer.render(scene, camera);
 	}
 
-	function doRequestFile(path, value){
+	function doRequestFile(path, isDirectory){
 		const xhr = new XMLHttpRequest();
 		xhr.open('GET', path, false);
         xhr.send(null);
@@ -253,51 +316,46 @@ function loadVolume(data, onLoadCallback) {
             const htmlDoc = parser.parseFromString(xhr.responseText, 'text/html');
             const fileList = Array.from(htmlDoc.querySelectorAll('a')).map(a => a.getAttribute('href'));
 			
-			if(value==true){
-				
+			if (isDirectory) {
 				for (const file of fileList) {
-					
 					if (file.endsWith('.nrrd')) {
-						var x = file.split('_');
-						switch(x[1]){
+						const x = file.split('_');
+						switch(x[1]) {
 							case 'Dentition.nrrd':
-								dentition.push(`${file}`);
+								dentition.push(file);
 								break;
 							case 'Mandible.nrrd':
-								mandible.push(`${file}`);
+								mandible.push(file);
 								break;
 							case 'MaxillaryComplex.nrrd':
-								maxillaryComplex.push(`${file}`);
+								maxillaryComplex.push(file);
 								break;
 							case 'MaxillarySinus.nrrd':
-								maxillarySinus.push(`${file}`);
+								maxillarySinus.push(file);
 								break;
 							case 'Nerve.nrrd':
-								nerve.push(`${file}`);
+								nerve.push(file);
 								break;
 							case 'Pharynx.nrrd':
-								pharynx.push(`${file}`);
+								pharynx.push(file);
 								break;
 							case 'Skull.nrrd':
-								skull.push(`${file}`);
+								skull.push(file);
 								break;
 							case 'Input.nrrd':
-								volumes.push(`${file}`);
-								dataLabels[`P${index}`] = `${file}`;
+								volumes.push(file);
+								dataLabels[`P${index}`] = file;
 								index++;
 								break;
 							default:
 								console.log('Unknown case:', x);
-								// Add your logic for unknown case here
 						}
-						
 					}
 				}
-			}
-			else{
+			} else {
 				for (const file of fileList) {
 					if (file.endsWith('/') && file.startsWith('\\')) {
-						directories.push(`${file}`);
+						directories.push(file);
 					}
 				}
 			}
@@ -306,7 +364,6 @@ function loadVolume(data, onLoadCallback) {
         }
 	}
 
-	</script>
-
+ </script>
 </body>
 </html>
