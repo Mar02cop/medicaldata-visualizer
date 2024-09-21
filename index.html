@@ -22,17 +22,18 @@
 
     import * as THREE from 'three';
     import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { ArcballControls } from 'three/addons/controls/ArcballControls.js';
     import { NRRDLoader } from 'three/addons/loaders/NRRDLoader.js';
     import { VolumeRenderShader1 } from 'three/addons/shaders/VolumeShader.js';
 
-	const volumes = [];
-    const directories = [];
-
-    let renderer, scene, camera, controls, material, volconfig, data, cmtextures;
     
-    const directoryLabels = {};
+    let renderer, scene, camera, controls, material, volconfig, data, cmtextures, arcballGUI;
+
+    const directories = [];
+    
     const dataLabels = {};
+
+    const volumes = [];
     const dentition = [];
     const mandible = [];
     const maxillaryComplex = [];
@@ -40,7 +41,9 @@
     const nerve = [];
     const pharynx = [];
     const skull = [];
-    let index = 1;
+
+    //let index = 1;
+
     let volumeDentitionMesh = null;
     let volumeMandibleMesh = null;
     let volumeMaxillaryComplexMesh = null;
@@ -69,20 +72,22 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Create camera (The volume renderer does not work very well with perspective yet)
-        const h = 512; // frustum height
+         // Orthographic camera setup
         const aspect = window.innerWidth / window.innerHeight;
-        camera = new THREE.OrthographicCamera(-h * aspect / 2, h * aspect / 2, h / 2, -h / 2, 1, 1000);
-        camera.position.set(-64, -64, 128);
-        camera.up.set(0, 0, 1); // In our data, z is up
+        const frustumSize = 512;
+        camera = new THREE.OrthographicCamera(
+            frustumSize * aspect / -2,   // left
+            frustumSize * aspect / 2,    // right
+            frustumSize / 2,             // top
+            frustumSize / -2,            // bottom
+            -3000,  // near: Ensure this is negative or at least small enough
+            3000    // far: Set far enough to include the entire volume
+        );
 
-        // Create controls
-        controls = new OrbitControls(camera, renderer.domElement);
+         // Controls (ArcballControls) - enable gizmos
+        controls = new ArcballControls(camera, renderer.domElement, scene);
+        controls.setGizmosVisible(true);
         controls.addEventListener('change', render);
-        controls.target.set(64, 64, 128);
-        controls.minZoom = 0.5;
-        controls.maxZoom = 4;
-        controls.enablePan = false;
         controls.update();
 
         // The GUI for interaction
@@ -92,7 +97,12 @@
             showSkull: false, showMaxillaryComplex: false, showMaxillarySinus: false, showPharynx: false
         };
 
+        arcballGUI = {gizmos : true};
         const gui = new GUI();
+        gui.title('Options');
+        gui.add(arcballGUI, 'gizmos').onChange( function () {
+            controls.setGizmosVisible( arcballGUI.gizmos );
+        } );
         gui.add(volconfig, 'clim1', 0, 1, 0.01).onChange(updateUniforms);
         gui.add(volconfig, 'clim2', 0, 1, 0.01).onChange(updateUniforms);
         gui.add(volconfig, 'colormap', { gray: 'gray', viridis: 'viridis' }).onChange(updateUniforms);
@@ -112,7 +122,7 @@
         loadVolume(volconfig.data);
 
         window.addEventListener('resize', onWindowResize);
-        const renderInterval = 200; // Render every 100 milliseconds
+        const renderInterval = 200; // Render every 200 milliseconds
         setInterval(() => renderer.render(scene, camera), renderInterval);
     }
 
@@ -200,11 +210,30 @@
             const mesh = new THREE.Mesh(geometry, material);
             scene.add(mesh);
 
+
+            centerCameraOnVolume(mesh);
             if (onLoadCallback) {
                 onLoadCallback();
             }
         });
     }
+
+    function centerCameraOnVolume(volume) {
+    const boundingBox = new THREE.Box3().setFromObject(volume);
+    const center = new THREE.Vector3();
+    boundingBox.getCenter(center);
+
+    const size = new THREE.Vector3();
+    boundingBox.getSize(size);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const distance = maxDim * 1.5;
+
+    camera.position.set(center.x, center.y, distance);
+    controls.target.copy(center); 
+    controls.update();
+}
+
 
     function loadAdditionalVolume(data, setVolumeMeshCallback) {
         new NRRDLoader().load(data, function (volume) {
@@ -334,8 +363,7 @@
 								break;
 							case 'Input.nrrd':
 								volumes.push(file);
-								dataLabels[`P${index}`] = file;
-								index++;
+                                dataLabels[`P${directories.indexOf(path) + 1}`] = file;
 								break;
 							default:
 								console.log('Unknown case:', x);
