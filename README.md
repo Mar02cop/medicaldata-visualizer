@@ -33,7 +33,7 @@ npm install
 ### Running the project
 
 ```bash
-[npm start — confirm actual script name in package.json]
+[npm start <file_name>]
 ```
 
 Then open `index.html` in your browser (or the local dev server URL, if one is configured).
