@@ -27,7 +27,7 @@
     import { VolumeRenderShader1 } from 'three/addons/shaders/VolumeShader.js';
 
     
-    let renderer, scene, camera, controls, material, volconfig, data, cmtextures, arcballGUI;
+    let renderer, scene, camera, controls, material, volconfig, data, cmtextures;
 
     const directories = [];
     
@@ -41,8 +41,6 @@
     const nerve = [];
     const pharynx = [];
     const skull = [];
-
-    //let index = 1;
 
     let volumeDentitionMesh = null;
     let volumeMandibleMesh = null;
@@ -66,27 +64,26 @@
 
         scene = new THREE.Scene();
 
-        // Create renderer
+ 
         renderer = new THREE.WebGLRenderer();
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-         // Orthographic camera setup
+ 
         const aspect = window.innerWidth / window.innerHeight;
         const frustumSize = 512;
         camera = new THREE.OrthographicCamera(
-            frustumSize * aspect / -2,   // left
-            frustumSize * aspect / 2,    // right
-            frustumSize / 2,             // top
-            frustumSize / -2,            // bottom
-            -3000,  // near: Ensure this is negative or at least small enough
-            3000    // far: Set far enough to include the entire volume
+            frustumSize * aspect / -2,
+            frustumSize * aspect / 2,
+            frustumSize / 2,
+            frustumSize / -2,
+            -3000,
+            3000
         );
 
-         // Controls (ArcballControls) - enable gizmos
         controls = new ArcballControls(camera, renderer.domElement, scene);
-        controls.setGizmosVisible(true);
+        controls.setGizmosVisible(false);
         controls.addEventListener('change', render);
         controls.update();
 
@@ -97,12 +94,8 @@
             showSkull: false, showMaxillaryComplex: false, showMaxillarySinus: false, showPharynx: false
         };
 
-        arcballGUI = {gizmos : true};
         const gui = new GUI();
         gui.title('Options');
-        gui.add(arcballGUI, 'gizmos').onChange( function () {
-            controls.setGizmosVisible( arcballGUI.gizmos );
-        } );
         gui.add(volconfig, 'clim1', 0, 1, 0.01).onChange(updateUniforms);
         gui.add(volconfig, 'clim2', 0, 1, 0.01).onChange(updateUniforms);
         gui.add(volconfig, 'colormap', { gray: 'gray', viridis: 'viridis' }).onChange(updateUniforms);
