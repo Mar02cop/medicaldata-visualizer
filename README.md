@@ -27,7 +27,6 @@ A browser-based tool for interactive 3D visualization of dental medical imaging 
 ```bash
 git clone https://github.com/Mar02cop/medicaldata-visualizer.git
 cd medicaldata-visualizer
-npm install
 ```
 
 ### Running the project
@@ -35,6 +34,9 @@ npm install
 ```bash
 [npx serve .]
 ```
+
+<img width="630" height="469" alt="image" src="https://github.com/user-attachments/assets/aa697303-b0da-4010-b1db-8a6410e71d58" />
+
 
 Then open `index.html` in your browser (or the local dev server URL, if one is configured).
 
